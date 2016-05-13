@@ -1,0 +1,28 @@
+body {
+
+}
+
+#header {
+    position: fixed;
+    top: 10;
+    left: 10;
+}
+
+#track {
+    position: fixed;
+    background: darkgreen;
+    width: 100%;
+    height: 500px;
+}
+
+#svg_horse {
+    position: fixed;
+    top: 0px;
+    left: 0px;
+}
+
+#fence {
+    height: 150px;
+    background-image: url("../img/fence.png");
+    background-repeat: repeat-x;
+}

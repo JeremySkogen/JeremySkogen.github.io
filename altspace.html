@@ -1,0 +1,130 @@
+<!DOCTYPE html>
+<html lang=en>
+<head>
+  <meta charset=utf-8>
+  <title>Spinning Cube</title>
+  <script src="https://sdk.altvr.com/libs/three.js/r73/build/three.js"></script>
+  <script src="http://sdk.altvr.com/libs/altspace.js/0.6.2/altspace.js"></script>
+  <script src="https://sdk.altvr.com/libs/three.js/r73/examples/js/loaders/MTLLoader.js"></script>
+  <script src="assets/js/stocktwits.js"></script>
+</head>
+<body>
+</body>
+<script>
+
+  var CUBE_SCALE = 10;
+  //can change above value in live-coding, 10-500 works well
+
+  var sim = altspace.utilities.Simulation();
+  var config = { authorId: 'JeremySkogen', appId: 'StockTwits' };
+  var sceneSync;
+
+  // Get stock list
+  var _st_trends = StockTwits.getTrending()
+
+  altspace.utilities.sync.connect(config).then(function(connection) {
+    sceneSync = altspace.utilities.behaviors.SceneSync(connection.instance, {
+      instantiators: {
+        'Cube': createStock(_st_trends[0]['id'], _st_trends[0]['symbol'], _st_trends[0]['title'])
+      },
+      ready: ready
+    });
+
+    sim.scene.addBehavior(sceneSync);
+  });
+
+  function createStock(id, symbol, title){
+    var tot_geo = new THREE.Geometry();
+
+    var geo_A = new THREE.BoxGeometry(10, 1, 1);
+    var geo_B = new THREE.BoxGeometry(1, 10, 1);
+    var geo_C = new THREE.BoxGeometry(1, 1, 10);
+    var mat_A = new THREE.MeshBasicMaterial({color:'#cc0000'});
+    var mat_B = new THREE.MeshBasicMaterial({color:'#00ff00'});
+    var mat_C = new THREE.MeshBasicMaterial({color:'#0000ff'});
+
+    var m1 = new THREE.Mesh(geo_A, mat_A);
+    var m2 = new THREE.Mesh(geo_B, mat_B);
+    var m3 = new THREE.Mesh(geo_C, mat_C);
+
+    m1.updateMatrix();
+    m2.updateMatrix();
+    m3.updateMatrix();
+
+    m1.geometry.merge(m2.geometry, m1.matrix)
+//    m1.geometry.merge(m3.geometry, m1.matrix, .01)
+
+    m1.scale.multiplyScalar(CUBE_SCALE);
+
+    m1.addBehaviors(
+      altspace.utilities.behaviors.Object3DSync(),
+      altspace.utilities.behaviors.Spin({speed: 0.0005})
+    );
+
+    sim.scene.add(m1);
+    return m1;
+  }
+
+  function createCube() {
+    //Use MTLLoader for loadTexture, to ensure image is power of 2
+    //else antialiasing won't work (this is a limitation of WebGL)
+    var materialCreator = new THREE.MTLLoader.MaterialCreator();
+    materialCreator.crossOrigin = 'anonymous';
+    var url = 'models/cube/altspace-logo.jpg';
+    //hosted: 'https://sdk.altvr.com/examples/models/share/cube/altspace-logo.jpg';
+    var texture = materialCreator.loadTexture(url);
+    var geometry = new THREE.BoxGeometry(1, 1, 1);
+    var material = new THREE.MeshBasicMaterial({color:'#ffffff', map: texture});
+    var cube = new THREE.Mesh(geometry, material);
+    cube.scale.multiplyScalar(CUBE_SCALE);
+    cube.addBehaviors(
+        altspace.utilities.behaviors.Object3DSync(),
+        altspace.utilities.behaviors.Spin({speed: 0.0005}),
+        ChangeColor()
+    );
+
+    sim.scene.add(cube);
+    return cube;
+  }
+
+  function ready(firstInstance) {
+    if (firstInstance) {
+//      sceneSync.instantiate('Cube');
+      sceneSync.instantiate('Cube');
+    }
+  }
+
+  function ChangeColor() {//define a custom behavior
+
+    var object3d;
+    var lastColor;
+    var colorRef;
+
+    function awake(o) {
+      object3d = o;
+      var sync = object3d.getBehaviorByType('Object3DSync');//TODO: better way of doing this
+      colorRef = sync.dataRef.child('color');
+
+      colorRef.on('value', function (snapshot) {
+        var value = snapshot.val();
+        if (!value) return; //we are first to create the cube, no color set yet
+        object3d.material.color = new THREE.Color(value);
+        object3d.material.needsUpdate = true;//currently required in Altspace
+      });
+
+      object3d.addEventListener('cursordown', function() {
+        var color = Please.make_color()[0];//random color
+        colorRef.set(color);
+      });
+    }
+
+    function update(deltaTime) {
+      /* no updating needed, color changes in Firebase 'value' callback above */
+    }
+
+    return { awake: awake, update: update };
+
+  };
+
+</script>
+</html>

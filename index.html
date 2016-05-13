@@ -1,89 +1,42 @@
 <!DOCTYPE html>
-<html lang=en>
+<html lang="en">
 <head>
-  <meta charset=utf-8>
-  <title>Spinning Cube</title>
-  <script src="https://sdk.altvr.com/libs/three.js/r73/build/three.js"></script>
-  <script src="assets/js/altspace.js"></script>
-  <script src="https://sdk.altvr.com/libs/three.js/r73/examples/js/loaders/MTLLoader.js"></script>
+  <meta charset="utf-8">
+  <meta http-equiv="X-UA-Compatible" content="IE=edge">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <!-- The above 3 meta tags *must* come first in the head; any other head content must come *after* these tags -->
+  <title>Revo Races</title>
+
+  <script   src="https://code.jquery.com/jquery-2.2.3.min.js"   integrity="sha256-a23g1Nt4dtEYOj7bR+vTu7+T8VP13humZFBJNIYoEJo="   crossorigin="anonymous"></script>
+
+  <link rel="stylesheet" href="https://maxcdn.bootstrapcdn.com/bootstrap/3.3.6/css/bootstrap.min.css" integrity="sha384-1q8mTJOASx8j1Au+a5WDVnPi2lkFfwwEAa8hDDdjZlpLegxhjVME1fgjWPGmkzs7" crossorigin="anonymous">
+
+  <!-- Optional theme -->
+  <link rel="stylesheet" href="https://maxcdn.bootstrapcdn.com/bootstrap/3.3.6/css/bootstrap-theme.min.css" integrity="sha384-fLW2N01lMqjakBkx3l/M9EahuwpSfeNvV63J5ezn3uZzapT0u7EYsXMjQV+0En5r" crossorigin="anonymous">
+  <script src="https://maxcdn.bootstrapcdn.com/bootstrap/3.3.6/js/bootstrap.min.js" integrity="sha384-0mSbJDEHialfmuBBQP6A4Qrprq5OVfW37PRR3j5ELqxss1yVqOtnepnHVP9aJ7xS" crossorigin="anonymous"></script>
+
+  <script src="http://cdnjs.cloudflare.com/ajax/libs/gsap/1.18.4/TweenMax.min.js"></script>
+
+  <script src="assets/js/main.js"></script>
+  <link rel="stylesheet" href="assets/css/main.css">
+  <![endif]-->
 </head>
 <body>
+<h1 id="header">Welcome to the races!</h1>
+
+<!-- jQuery (necessary for Bootstrap's JavaScript plugins) -->
+<script src="https://ajax.googleapis.com/ajax/libs/jquery/1.11.3/jquery.min.js"></script>
+<!-- Include all compiled plugins (below), or include individual files as needed -->
+<script src="js/bootstrap.min.js"></script>
+
+<div id="fence">
+</div>
+<div id="track">
+
+</div>
+
+<div id="horses">
+  <img id="svg_horse" style="display: none;" src="assets/img/horse.svg">
+</div>
 </body>
-<script>
-
-  var CUBE_SCALE = 250;
-  //can change above value in live-coding, 10-500 works well
-
-  var sim = altspace.utilities.Simulation();
-  var config = { authorId: 'AltspaceVR', appId: 'SpinningCube' };
-  var sceneSync;
-  altspace.utilities.sync.connect(config).then(function(connection) {
-    sceneSync = altspace.utilities.behaviors.SceneSync(connection.instance, {
-      instantiators: {'Cube': createCube },
-      ready: ready
-    });
-    sim.scene.addBehavior(sceneSync);
-  });
-
-  function createCube() {
-    //Use MTLLoader for loadTexture, to ensure image is power of 2
-    //else antialiasing won't work (this is a limitation of WebGL)
-    var materialCreator = new THREE.MTLLoader.MaterialCreator();
-    materialCreator.crossOrigin = 'anonymous';
-    var url = 'models/cube/altspace-logo.jpg';
-    //hosted: 'https://sdk.altvr.com/examples/models/share/cube/altspace-logo.jpg';
-    var texture = materialCreator.loadTexture(url);
-    var geometry = new THREE.BoxGeometry(1, 1, 1);
-    var material = new THREE.MeshBasicMaterial({color:'#ffffff', map: texture});
-    var cube = new THREE.Mesh(geometry, material);
-    cube.scale.multiplyScalar(CUBE_SCALE);
-    cube.addBehaviors(
-        altspace.utilities.behaviors.Object3DSync(),
-        altspace.utilities.behaviors.Spin({speed: 0.0005}),
-        ChangeColor()
-    );
-
-    sim.scene.add(cube);
-    return cube;
-  }
-
-  function ready(firstInstance) {
-    if (firstInstance) {
-      sceneSync.instantiate('Cube');
-    }
-  }
-
-  function ChangeColor() {//define a custom behavior
-
-    var object3d;
-    var lastColor;
-    var colorRef;
-
-    function awake(o) {
-      object3d = o;
-      var sync = object3d.getBehaviorByType('Object3DSync');//TODO: better way of doing this
-      colorRef = sync.dataRef.child('color');
-
-      colorRef.on('value', function (snapshot) {
-        var value = snapshot.val();
-        if (!value) return; //we are first to create the cube, no color set yet
-        object3d.material.color = new THREE.Color(value);
-        object3d.material.needsUpdate = true;//currently required in Altspace
-      });
-
-      object3d.addEventListener('cursordown', function() {
-        var color = Please.make_color()[0];//random color
-        colorRef.set(color);
-      });
-    }
-
-    function update(deltaTime) {
-      /* no updating needed, color changes in Firebase 'value' callback above */
-    }
-
-    return { awake: awake, update: update };
-
-  };
-
-</script>
 </html>
