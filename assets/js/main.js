@@ -1,19 +1,130 @@
+var nop = function(){};
+
+var ScoreBoard = {
+  update : function(text){
+    $("#header").html(text);
+  }
+}
+
+var Lineup = {
+  // Team based
+  insert_team_races : function(){
+    var team_names = $.unique(racer_data.map(function(o){ return o.team; }));
+    console.log(team_names);
+
+    $.each( team_names, function( team_num, team_name ) {
+      console.log(team_num, team_name);
+      var events = [];
+      var racers = $.grep(racer_data, function (e) {
+        return e.team == team_name;
+      })
+      console.log('team racers', team_name, racers.length);
+
+      var top_text = "<div>Team: "+team_name+"</div>";
+      events.push({text: top_text+"<div>Lineup</div>", start_delay: 1, stop_delay: 5, action: function(){
+        console.log('starting', team_name);
+        HorseRace.reset();
+        HorseRace.load_racers(racers);
+        HorseRace.init();
+        console.log('lineup', team_name);
+        HorseRace.lineup();
+      }});
+      events.push({text: top_text+"<div>Get Ready</div>", start_delay: 1, stop_delay: 0, action: nop});
+      events.push({text: top_text+"<div>Race!!</div>", start_delay: 1, stop_delay: 0, action: function(){
+        console.log('race', team_name);
+        RaceSchedule.pause();
+        HorseRace.race();
+      }});
+
+      events.push({text: top_text+"<div>Congrats Winner</div>", start_delay: 2, stop_delay: 0, action: function(){
+        console.log('finished', team_name);
+      }});
+
+      RaceSchedule.inject_events(events);
+    });
+  }
+  // Groups by earnings
+}
+
+var RaceSchedule = {
+  event_paused: false,
+  event_num: 0,
+  events: [
+    {text: 'Welcome to the Races', start_delay: 4, stop_delay: 0, action: nop},
+    {text: 'Team Races', start_delay: 4, stop_delay: 0, action: Lineup.insert_team_races },
+  ],
+  inject_events: function(events){
+    this.events = this.events.concat(events);
+    // this.events.splice.apply(this.events, [this.event_num, 0].concat(events));
+  },
+  restart: function(){
+    this.event_num = 0;
+    this.next();
+  },
+  pause: function(){
+    console.log('RaceSchedule Pause');
+    this.event_paused = true;
+  },
+  resume: function(){
+    console.log('RaceSchedule Resume');
+    // Called multiple times by each racer as they finish, fix it
+    if(!this.event_paused){
+      return;
+    }
+    this.event_paused = false;
+    this.next();
+  },
+  next: function(){
+    var cur_event = this.events[this.event_num];
+    console.log('RaceSchedule', this.event_num, this.event_paused, cur_event);
+    this.event_num += 1;
+
+    // Stop when its finished
+    if(this.event_num > this.events.length){
+      console.log('Schedule empty')
+      return;
+    }
+
+    // console.log('next: cur_event', cur_event);
+
+    // Update text
+    ScoreBoard.update(cur_event.text);
+
+    // If its paused, dont go on to the next event
+    if(this.event_paused){
+      setTimeout(function(){ cur_event.action(); }, 1000 * cur_event.start_delay);
+    // Wait *start_delay*, do action, wait *stop_delay*, Next
+    }else{
+      setTimeout(function(){
+        cur_event.action();
+        if(!RaceSchedule.event_paused){
+          setTimeout(function(){RaceSchedule.next()}, 1000 * cur_event.stop_delay);
+        }
+      }, 1000 * cur_event.start_delay);
+    }
+  }
+};
+
+
 var HorseRace = {
+  day_speed : 1,
   racers : [],
   load_racers : function(racer_data){
     this.racers = racer_data;
   },
+  reset : function(){
+    $('#track').html('');
+  },
   init : function(){
-    console.log('Preparing for the race');
+    console.log('Preparing for the race, init()');
     // Give everyone a horse
 
-    var distance_between = 25;
+    var distance_between = 50;
     var track_offset = 200;
 
     $.each( this.racers, function( racer_num, racer ) {
-      console.log( racer_num, racer );
+      // console.log( racer_num, racer );
       var h = $('#svg_horse').clone();
-      console.log(h.css("width"), h.css("height"));
 
       h.css("width", 200);
       h.css("height", 200);
@@ -28,16 +139,27 @@ var HorseRace = {
 
       racer.horse = h;
       $('#track').append(racer.horse);
+
+      var racer_name_el = $('<div id="racer_'+racer.id+'"></div>').css({
+        position: 'fixed',
+        height: 50,
+        // width: 400,
+        top: track_offset + distance_between * racer_num + 125,
+        right: 20,
+        'font-size': '20px',
+        'font-weight': 'bold'
+      }).html(racer.name);
+      $('#track').append(racer_name_el);
+
       racer.horse.show();
     });
   },
   
   // Animate the horses coming out
   lineup : function(){
-    $("#header").html("On your marks!");
     $.each( HorseRace.racers, function( racer_num, racer ) {
-      var approach = Math.random() * 5;
-      var trot = (Math.random() / 4) + 0.35;
+      var approach = (Math.random() * 2) + 2;
+      var trot = (Math.random() / 10) + 0.4;
       racer.position = 10;
       TweenLite.to(racer.horse, approach, {left: 10, onComplete: function(a,b){ racer.horse.rocking.pause(); }});
       HorseRace.animate.rocking_fwd(racer.horse, trot);
@@ -52,14 +174,22 @@ var HorseRace = {
     });
   },
   race_step : function(racer, day){
-    $("#header").html("Day #"+(day+1));
+    var top_text = "<div>Team: "+racer.team+"</div>"+"Day #"+(day+1);
+    $("#header").html(top_text);
     if(racer.daily_earn[day] == undefined){
       racer.horse.rocking.pause();
+      RaceSchedule.resume();
       return;
     }
+    // Update name
+    var earnings_total = (day == 0) ? racer.daily_earn[0] : racer.daily_earn.slice(0, day).reduce(function(a, b) { return a + b; }, 0);
+    $("#racer_"+racer.id).html(racer.name + " " + toMoney(earnings_total));
+
     racer.position += (racer.daily_earn[day] * max_px_per_day);
-    console.log('step', racer);
-    TweenLite.to(racer.horse, 4, {left: racer.position, onComplete: function(){ HorseRace.race_step(racer, day + 1); }});
+    // if(racer.id == 1){
+    //   console.log('step', racer, racer.daily_earn[day]);
+    // }
+    TweenLite.to(racer.horse, HorseRace.day_speed, {ease: Power0.easeNone, left: racer.position, onComplete: function(){ HorseRace.race_step(racer, day + 1); }});
   },
 
   animate : {
@@ -87,11 +217,12 @@ var Horse = function(){
 
 
 $( document ).ready(function() {
+  RaceSchedule.next();
   // HorseRace.load_racers([racer_data[3], racer_data[4]]);
-  HorseRace.load_racers(racer_data);
-  HorseRace.init();
-  HorseRace.lineup()
-  setTimeout(HorseRace.race, 5000);
+  // HorseRace.load_racers(racer_data);
+  // HorseRace.init();
+  // HorseRace.lineup()
+  // setTimeout(HorseRace.race, 5000);
 });
 
 
@@ -126,13 +257,14 @@ var raw_data = ['TARA, Alex Dorado, 0, 0, 0, 0, 0, 0, 0, 0, 0',
   'MATT, Whitney Quinley, 2550, 2250, 2400, 2450, 1900, 2000, 2550, 550, 2700',
   'TARA, Yoana Gallardo, 2250, 2850, 2300, 2100, 2050, 2200, 1850, 500, 2200'];
 
-console.log(raw_data);
+// console.log(raw_data);
 var racer_data = [];
 var max_earn = 0;
 
 $.each( raw_data, function( i, racer ) {
   var obj = {};
   var split = racer.split(', ');
+  obj.id = i;
   obj.team = split.shift();
   obj.name = split.shift();
   obj.daily_earn = split.map(Number);
@@ -144,3 +276,18 @@ $.each( raw_data, function( i, racer ) {
 
 var total_day = racer_data[0].daily_earn.length;
 var max_px_per_day = 1000 / (max_earn * 1.1 );
+
+
+function shuffleArray(array) {
+  for (var i = array.length - 1; i > 0; i--) {
+    var j = Math.floor(Math.random() * (i + 1));
+    var temp = array[i];
+    array[i] = array[j];
+    array[j] = temp;
+  }
+  return array;
+}
+
+function toMoney(x) {
+  return '$' + x.toString().replace(/\B(?=(\d{3})+(?!\d))/g, ",");
+}
