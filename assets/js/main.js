@@ -151,6 +151,16 @@ var HorseRace = {
       }).html(racer.name);
       $('#track').append(racer_name_el);
 
+      for(var i=0; i<4; i+=1){
+        var hill = $('#hill_bg').clone();
+        hill.css({
+          position: 'fixed',
+          top: track_offset + distance_between * racer_num + 100,
+          left: i * 295
+        });
+        $('#track').append(hill);
+      }
+
       racer.horse.show();
     });
   },
